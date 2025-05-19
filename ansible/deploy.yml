@@ -1,0 +1,88 @@
+---
+- name: Deploy Node.js API
+  hosts: api
+  become: yes
+  vars:
+    app_dir: /opt/api
+    git_repo: https://github.com/yourusername/DeploiementTestIndividuel.git
+    git_branch: main
+    node_version: 16.x
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - git
+          - curl
+          - build-essential
+        state: present
+
+    - name: Add NodeSource repository
+      shell: |
+        curl -fsSL https://deb.nodesource.com/setup_{{ node_version }} | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js and npm
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Install PM2 globally
+      npm:
+        name: pm2
+        global: yes
+        state: present
+
+    - name: Create app directory
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Clone/update application repository
+      git:
+        repo: "{{ git_repo }}"
+        dest: "{{ app_dir }}"
+        version: "{{ git_branch }}"
+        force: yes
+      become_user: vagrant
+      register: git_result
+
+    - name: Install Node.js dependencies
+      npm:
+        path: "{{ app_dir }}/api"
+        state: present
+      become_user: vagrant
+      when: git_result.changed
+
+    - name: Check if PM2 is running the app
+      shell: pm2 list | grep api-server
+      register: pm2_status
+      ignore_errors: yes
+      become_user: vagrant
+
+    - name: Start application with PM2
+      shell: cd {{ app_dir }}/api && pm2 start index.js --name api-server
+      become_user: vagrant
+      when: pm2_status.rc != 0
+
+    - name: Restart application with PM2 if already running
+      shell: cd {{ app_dir }}/api && pm2 restart api-server
+      become_user: vagrant
+      when: pm2_status.rc == 0 and git_result.changed
+
+    - name: Save PM2 process list
+      shell: pm2 save
+      become_user: vagrant
+
+    - name: Set PM2 to start on boot
+      shell: pm2 startup systemd -u vagrant --hp /home/vagrant
+      when: pm2_status.changed

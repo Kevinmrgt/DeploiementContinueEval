@@ -1,0 +1,58 @@
+name: Deploy API
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+          cache: 'npm'
+          cache-dependency-path: 'api/package-lock.json'
+      
+      - name: Install dependencies
+        run: |
+          cd api
+          npm ci
+      
+      - name: Run tests
+        run: |
+          cd api
+          npm test
+      
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      
+      - name: Set up Ansible
+        run: |
+          pip install ansible
+      
+      - name: Deploy with Ansible
+        run: |
+          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: false
+      
+      - name: Notify deployment status
+        if: always()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_CHANNEL: deployments
+          SLACK_TITLE: Deployment Status
+          SLACK_MESSAGE: 'API deployment ${{ job.status }}'
+          SLACK_COLOR: ${{ job.status == 'success' && 'good' || 'danger' }}
