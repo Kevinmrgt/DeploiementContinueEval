@@ -4,7 +4,7 @@
   become: yes
   vars:
     app_dir: /opt/api
-    git_repo: https://github.com/yourusername/DeploiementTestIndividuel.git
+    git_repo: https://github.com/Kevinmrgt/DeploiementContinueEval.git
     git_branch: main
     node_version: 16.x
 
