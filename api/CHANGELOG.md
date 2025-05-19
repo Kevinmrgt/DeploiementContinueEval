@@ -2,14 +2,6 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
-## [1.8.0](https://github.com/Kevinmrgt/DeploiementContinueEval/compare/v1.7.0...v1.8.0) (2025-05-19)
-
-
-### Features
-
-* Update infrastructure deployment configuration
-* Fix SSH key configuration for CI/CD pipeline
-
 ## [1.7.0](https://github.com/Kevinmrgt/DeploiementContinueEval/compare/v1.1.0...v1.7.0) (2025-05-19)
 
 
