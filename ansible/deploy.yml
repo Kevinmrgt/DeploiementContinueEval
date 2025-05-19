@@ -7,6 +7,7 @@
     git_repo: https://github.com/Kevinmrgt/DeploiementContinueEval.git
     git_branch: main
     node_version: 16.x
+    local_api_dir: "/home/kevin/Documents/DEV/DeploiementTestIndividuel/api"
 
   tasks:
     - name: Update apt cache
@@ -47,21 +48,75 @@
         group: vagrant
         mode: '0755'
 
-    - name: Clone/update application repository
-      git:
-        repo: "{{ git_repo }}"
-        dest: "{{ app_dir }}"
-        version: "{{ git_branch }}"
-        force: yes
-      become_user: vagrant
-      register: git_result
+    - name: Copy package.json to VM
+      copy:
+        src: "{{ local_api_dir }}/package.json"
+        dest: "{{ app_dir }}/package.json"
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Copy index.js to VM
+      copy:
+        src: "{{ local_api_dir }}/index.js"
+        dest: "{{ app_dir }}/index.js" 
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Ensure routes directory exists
+      file:
+        path: "{{ app_dir }}/routes"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Copy routes files
+      copy:
+        src: "{{ local_api_dir }}/routes/"
+        dest: "{{ app_dir }}/routes/"
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Ensure utils directory exists
+      file:
+        path: "{{ app_dir }}/utils"
+        state: directory
+        owner: vagrant
+        group: vagrant
+        mode: '0755'
+
+    - name: Copy utils files
+      copy:
+        src: "{{ local_api_dir }}/utils/"
+        dest: "{{ app_dir }}/utils/"
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Copy .env file to VM
+      copy:
+        src: "{{ local_api_dir }}/.env"
+        dest: "{{ app_dir }}/.env"
+        owner: vagrant
+        group: vagrant
+        mode: '0644'
+
+    - name: Set ownership of app directory
+      file:
+        path: "{{ app_dir }}"
+        owner: vagrant
+        group: vagrant
+        recurse: yes
 
     - name: Install Node.js dependencies
       npm:
-        path: "{{ app_dir }}/api"
+        path: "{{ app_dir }}"
         state: present
+        production: yes
       become_user: vagrant
-      when: git_result.changed
 
     - name: Check if PM2 is running the app
       shell: pm2 list | grep api-server
@@ -70,14 +125,14 @@
       become_user: vagrant
 
     - name: Start application with PM2
-      shell: cd {{ app_dir }}/api && pm2 start index.js --name api-server
+      shell: cd {{ app_dir }} && pm2 start index.js --name api-server
       become_user: vagrant
       when: pm2_status.rc != 0
 
     - name: Restart application with PM2 if already running
-      shell: cd {{ app_dir }}/api && pm2 restart api-server
+      shell: cd {{ app_dir }} && pm2 restart api-server
       become_user: vagrant
-      when: pm2_status.rc == 0 and git_result.changed
+      when: pm2_status.rc == 0
 
     - name: Save PM2 process list
       shell: pm2 save

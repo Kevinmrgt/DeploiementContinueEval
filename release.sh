@@ -10,6 +10,10 @@ cd "$(dirname "$0")/api"
 echo "📦 Installing dependencies..."
 npm install
 
+# Run tests
+echo "🧪 Running tests..."
+npm test
+
 # Run build
 echo "🔨 Building application..."
 npm run build

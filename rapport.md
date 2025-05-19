@@ -93,6 +93,21 @@ Le pipeline complet de déploiement se décompose ainsi :
    - Installation/mise à jour des dépendances
    - Redémarrage de l'application avec PM2
 
+## Tests (Jest)
+
+L'API est testée avec Jest et supertest, ce qui nous permet de :
+- Tester tous les endpoints de l'API de manière automatisée
+- Valider les réponses HTTP (status code, contenu)
+- Vérifier la cohérence des données
+- S'assurer de la stabilité lors des nouvelles versions
+
+Architecture des tests :
+- Tests unitaires : fonctions et utilitaires
+- Tests d'intégration : endpoints API complets
+- Mocks pour les dépendances externes (si nécessaire)
+
+Les tests sont intégrés au pipeline CI/CD et exécutés avant chaque déploiement, garantissant que seul le code fonctionnel soit déployé en production.
+
 ## Avantages de cette architecture
 
 - **Reproductibilité** : Infrastructure as Code avec Vagrant et Terraform
