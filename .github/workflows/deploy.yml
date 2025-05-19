@@ -30,42 +30,28 @@ jobs:
           cd api
           npm test
       
-      - name: Set up Ansible
-        run: |
-          pip install ansible
-      
-      - name: Check if SSH key is available
-        id: check_ssh
-        run: |
-          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
-            echo "ssh_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "ssh_available=false" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Set up SSH key
-        if: steps.check_ssh.outputs.ssh_available == 'true'
+        if: github.event_name == 'push' && github.ref_type == 'tag'
         uses: webfactory/ssh-agent@v0.7.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
+      - name: Set up Ansible
+        run: |
+          pip install ansible
+      
       - name: Deploy with Ansible
         run: |
-          ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+          # Set up inventory file path dynamically
+          INVENTORY_PATH="ansible/inventory.ini"
+          
+          # Run Ansible playbook
+          ansible-playbook -i $INVENTORY_PATH ansible/deploy.yml
         env:
           ANSIBLE_HOST_KEY_CHECKING: false
       
-      - name: Check if Slack webhook is available
-        id: check_slack
-        run: |
-          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
-            echo "slack_available=true" >> $GITHUB_OUTPUT
-          else
-            echo "slack_available=false" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Notify deployment status
-        if: steps.check_slack.outputs.slack_available == 'true'
+        if: always()
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
