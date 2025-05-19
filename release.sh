@@ -15,14 +15,14 @@ echo "🔨 Building application..."
 npm run build
 
 # Generate new version based on date and create git tag
-VERSION=$(date +'%Y.%m.%d')
+VERSION=$(date +'%Y.%m.%d-%H%M%S')
 echo "🏷️  Creating tag v$VERSION..."
 git tag "v$VERSION"
 git push --tags
 
 # Update version with standard-version
 echo "📝 Updating version with standard-version..."
-npx standard-version --release-as minor
+npx standard-version --release-as minor --skip.tag
 
 # Deploy with Ansible
 echo "🚀 Deploying with Ansible..."
