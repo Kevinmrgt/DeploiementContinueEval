@@ -19,27 +19,35 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: '16'
-          cache: 'npm'
-          cache-dependency-path: 'api/package-lock.json'
       
       - name: Install dependencies
         run: |
           cd api
-          npm ci
+          npm install
       
       - name: Run tests
         run: |
           cd api
           npm test
       
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.7.0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
       - name: Set up Ansible
         run: |
           pip install ansible
+      
+      - name: Check if SSH key is available
+        id: check_ssh
+        run: |
+          if [ -n "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "ssh_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "ssh_available=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Set up SSH key
+        if: steps.check_ssh.outputs.ssh_available == 'true'
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
       - name: Deploy with Ansible
         run: |
@@ -47,8 +55,17 @@ jobs:
         env:
           ANSIBLE_HOST_KEY_CHECKING: false
       
+      - name: Check if Slack webhook is available
+        id: check_slack
+        run: |
+          if [ -n "${{ secrets.SLACK_WEBHOOK }}" ]; then
+            echo "slack_available=true" >> $GITHUB_OUTPUT
+          else
+            echo "slack_available=false" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Notify deployment status
-        if: always()
+        if: steps.check_slack.outputs.slack_available == 'true'
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
