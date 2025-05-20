@@ -1,8 +1,22 @@
 # 📄 Rapport Technique - Pipeline CI/CD pour API IoT
 
+**Dépôt GitHub** : [https://github.com/Kevinmrgt/DeploiementContinueEval](https://github.com/Kevinmrgt/DeploiementContinueEval)
+
 ## Introduction
 
 Ce rapport détaille l'architecture, les choix techniques et le pipeline mis en place pour automatiser le déploiement de notre API Node.js de supervision de capteurs IoT.
+
+## Domaine fonctionnel : API de supervision de capteurs
+
+Notre solution est une API REST développée en Node.js qui permet de superviser des capteurs environnementaux IoT. Elle offre les fonctionnalités suivantes :
+
+- **Gestion des capteurs** : CRUD complet (Création, Lecture, Mise à jour, Suppression)
+- **Types de capteurs supportés** : Température, Humidité, CO2, et autres capteurs environnementaux
+- **Format de données standardisé** : Données structurées en JSON avec métadonnées (unités, localisation, horodatage)
+- **Endpoints de santé** : Surveillance de l'état de l'API via `/health`
+- **Documentation intégrée** : Informations sur les endpoints disponibles à la racine de l'API
+
+Cette API est conçue pour être consommée par des applications mobiles de surveillance environnementale, permettant aux utilisateurs de visualiser en temps réel les données de leurs capteurs IoT.
 
 ## Architecture globale
 
@@ -20,6 +34,33 @@ GitHub (Code Source) → GitHub Actions (CI/CD) → Ansible (Configuration) → 
 ```
 
 ## Choix techniques
+
+### Choix d'infra et provider
+
+#### Infrastructure locale (Vagrant/VirtualBox)
+
+Pour notre infrastructure de déploiement, nous avons opté pour une solution basée sur Vagrant avec VirtualBox comme provider. Ce choix présente plusieurs avantages :
+
+- **Environnement reproductible** : Définition de l'infrastructure sous forme de code (IaC)
+- **Isolation** : VM complètement isolée du système hôte
+- **Portabilité** : Fonctionne sur tous les systèmes d'exploitation (Windows, macOS, Linux)
+- **Faible coût** : Solution gratuite, idéale pour le développement et les tests
+- **Proximité avec la production** : Utilisation de la même distribution Linux (Ubuntu 20.04 LTS) que sur les serveurs de production
+
+#### Alternative cloud considérée
+
+Nous avons également évalué des solutions cloud comme AWS (EC2) ou Azure (VM), mais pour ce projet, la solution locale répondait mieux à nos besoins en termes de :
+- Coût (gratuit vs facturation à l'usage)
+- Simplicité de mise en œuvre
+- Contrôle total sur l'environnement
+- Possibilité de travailler hors-ligne
+
+#### Terraform pour la gestion Vagrant
+
+Nous utilisons Terraform avec le provider Vagrant pour gérer notre VM de manière déclarative et reproductible. Ce choix permet :
+- Une approche Infrastructure as Code cohérente
+- La possibilité d'ajouter facilement d'autres VMs ou providers à l'avenir
+- Une gestion uniforme des ressources locales et cloud si besoin
 
 ### Infrastructure (Vagrant)
 
@@ -71,6 +112,62 @@ PM2 assure :
 
 ## Pipeline de déploiement
 
+### Structure des dossiers du projet
+
+Notre projet est organisé selon une structure claire qui sépare les différentes préoccupations :
+
+#### Dossier `infra/`
+
+Ce dossier contient toute la configuration relative à l'infrastructure :
+
+```
+infra/
+├── main.tf              # Configuration Terraform principale
+├── variables.tf         # Variables Terraform
+└── Vagrantfile          # Configuration Vagrant pour la VM
+```
+
+- **main.tf** : Définit les ressources Terraform, notamment la VM Vagrant et ses configurations
+- **variables.tf** : Contient les variables utilisées par Terraform
+- **Vagrantfile** : Configuration détaillée de la VM (OS, ressources, ports, etc.)
+
+#### Dossier `ansible/`
+
+Ce dossier contient les playbooks et inventaires Ansible pour la configuration et le déploiement :
+
+```
+ansible/
+├── deploy.yml           # Playbook principal de déploiement
+└── inventory.ini        # Fichier d'inventaire des serveurs cibles
+```
+
+- **deploy.yml** : Playbook qui installe les dépendances (Node.js, PM2), copie les fichiers de l'API et configure les services
+- **inventory.ini** : Définit les serveurs cibles (dans notre cas, la VM Vagrant locale)
+
+#### Dossier `api/`
+
+Ce dossier contient le code source de l'API Node.js :
+
+```
+api/
+├── index.js             # Point d'entrée de l'application
+├── package.json         # Dépendances et scripts npm
+├── CHANGELOG.md         # Journal des modifications
+├── __tests__/           # Tests automatisés
+│   └── api.test.js      # Tests des endpoints API
+├── routes/              # Définition des routes de l'API
+│   └── sensorRoutes.js  # Routes pour la gestion des capteurs
+└── utils/               # Utilitaires
+    └── logger.js        # Configuration des logs
+```
+
+- **index.js** : Configuration de l'application Express.js, middlewares et routes
+- **package.json** : Définition des dépendances et des scripts (test, build, start)
+- **routes/** : Organisation des endpoints par domaine fonctionnel
+- **__tests__/** : Tests automatisés avec Jest
+
+### Fonctionnement du pipeline CI/CD
+
 Le pipeline complet de déploiement se décompose ainsi :
 
 1. **Développement local** :
@@ -115,6 +212,92 @@ Les tests sont intégrés au pipeline CI/CD et exécutés avant chaque déploiem
 - **Fiabilité** : Tests systématiques avant déploiement
 - **Scalabilité** : Architecture adaptable à un environnement multi-serveurs
 - **Maintenance** : Gestion de processus avec PM2 pour garantir la disponibilité
+
+## Obstacles rencontrés et solutions
+
+Au cours du développement et de la mise en place de ce pipeline CI/CD, nous avons rencontré plusieurs défis techniques qui ont nécessité des solutions spécifiques :
+
+### 1. Problème de SSH avec GitHub Actions
+
+**Problème** : Échec d'authentification SSH lors du déploiement via GitHub Actions vers notre VM Vagrant.
+
+**Log d'erreur** :
+```
+TASK [Deploy Node.js API] ******************************************
+fatal: [127.0.0.1]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: Permission denied (publickey).", "unreachable": true}
+```
+
+**Solution** : 
+- Génération d'une nouvelle paire de clés SSH dédiée au déploiement
+- Stockage sécurisé de la clé privée dans les secrets GitHub
+- Configuration explicite de l'agent SSH dans le workflow GitHub Actions :
+
+```yaml
+- name: Set up SSH key
+  uses: webfactory/ssh-agent@v0.7.0
+  with:
+    ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
+
+### 2. Permissions insuffisantes pour PM2
+
+**Problème** : PM2 ne pouvait pas redémarrer l'application après déploiement (problème de permissions).
+
+**Log d'erreur** :
+```
+[PM2] Error: EACCES: permission denied, open '/home/vagrant/.pm2/pm2.log'
+```
+
+**Solution** :
+- Modification du playbook Ansible pour exécuter les commandes PM2 avec l'utilisateur approprié :
+
+```yaml
+- name: Start application with PM2
+  shell: cd {{ app_dir }} && pm2 start index.js --name api-server
+  become_user: vagrant
+```
+
+### 3. Conflits de tags Git
+
+**Problème** : Échecs lors de la création de tags basés sur la date dans le script de release.
+
+**Log d'erreur** :
+```
+error: tag 'v2025.05.19' already exists
+```
+
+**Solution** :
+- Modification du script `release.sh` pour générer des tags uniques en incluant l'heure précise :
+
+```bash
+VERSION=$(date +'%Y.%m.%d-%H%M%S')
+echo "🏷️  Creating tag v$VERSION..."
+git tag "v$VERSION"
+```
+
+### 4. Gestion des dépendances Node.js
+
+**Problème** : Installations incomplètes des dépendances Node.js sur le serveur de déploiement.
+
+**Log d'erreur** :
+```
+Error: Cannot find module 'express'
+```
+
+**Solution** :
+- Mise à jour du playbook Ansible pour garantir l'installation complète des dépendances :
+- Ajout de vérifications explicites de l'installation des packages
+- Configuration du mode production pour npm
+
+```yaml
+- name: Install Node.js dependencies
+  npm:
+    path: "{{ app_dir }}"
+    state: present
+    production: yes
+```
+
+Ces obstacles et leurs solutions illustrent les défis typiques rencontrés lors de la mise en place d'un pipeline CI/CD robuste, et montrent comment une approche méthodique de résolution de problèmes peut les surmonter.
 
 ## Améliorations futures
 
