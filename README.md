@@ -4,11 +4,12 @@ Ce projet met en place un pipeline de déploiement continu complet pour une API 
 
 ## 🆕 Dernière mise à jour (Mai 2025)
 - ✅ Correction du workflow de déploiement automatique
-- 🔄 Amélioration de la stabilité du déploiement continu
+- 🔄 Amélioration du processus avec création d'artefacts de déploiement
 - 🔒 Renforcement de la sécurité des clés SSH
 - 📝 Documentation mise à jour
 - 🔧 Optimisation des performances de l'API
 - 🌍 Support amélioré pour les différents fuseaux horaires
+- 📦 Nouveau workflow GitHub Actions pour la création d'artefacts
 
 ## 🔧 Technologies
 - 🖥️ Infrastructure : Vagrant (Ubuntu VM locale)

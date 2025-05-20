@@ -8,7 +8,7 @@ on:
       - 'v*'
 
 jobs:
-  deploy:
+  test:
     runs-on: ubuntu-latest
     
     steps:
@@ -32,23 +32,34 @@ jobs:
           cd api
           npm test
       
-      - name: Set up SSH key
-        uses: webfactory/ssh-agent@v0.7.0
+      - name: Create deployment artifact
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Creating deployment artifact for version $VERSION"
+          mkdir -p deployment
+          cp -r api deployment/
+          cp -r ansible deployment/
+          tar -czf api-deployment-$VERSION.tar.gz deployment
+          echo "::set-output name=artifact_name::api-deployment-$VERSION.tar.gz"
+      
+      - name: Upload artifact
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        uses: actions/upload-artifact@v3
         with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
-      - name: Set up Ansible
-        run: |
-          pip install ansible
-      
-      - name: Deploy with Ansible
-        run: |
-          # Set up inventory file path dynamically
-          INVENTORY_PATH="ansible/inventory.ini"
+          name: deployment-package
+          path: api-deployment-*.tar.gz
+          retention-days: 5
           
-          # Run Ansible playbook
-          ansible-playbook -i $INVENTORY_PATH ansible/deploy.yml
+      - name: Create release
+        if: success() && startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: api-deployment-*.tar.gz
+          draft: false
+          prerelease: false
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANSIBLE_HOST_KEY_CHECKING: false
       
       - name: Notify deployment status
