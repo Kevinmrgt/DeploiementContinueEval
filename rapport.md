@@ -176,19 +176,21 @@ Le pipeline complet de déploiement se décompose ainsi :
 
 2. **Publication de version** :
    - Exécution de `release.sh` qui :
-     - Crée un tag Git basé sur la date
+     - Crée un tag Git basé sur la date et l'heure
      - Met à jour la version avec standard-version
      - Pousse les tags sur GitHub
 
 3. **CI/CD automatisé** :
    - Déclenchement du workflow GitHub Actions sur tag
    - Exécution des tests
-   - Déploiement via Ansible
+   - Création d'un package de déploiement
 
-4. **Déploiement sur serveur** :
-   - Ansible met à jour le code source
-   - Installation/mise à jour des dépendances
-   - Redémarrage de l'application avec PM2
+4. **Déploiement manuel** :
+   - Téléchargement du package de déploiement depuis GitHub Actions
+   - Déploiement local via Ansible
+   - Vérification du déploiement avec `check-status.sh`
+
+Cette approche semi-automatisée résout les problèmes d'accessibilité entre GitHub Actions et notre VM Vagrant locale, tout en maintenant un processus de déploiement fiable et reproductible.
 
 ## Tests (Jest)
 
@@ -217,7 +219,35 @@ Les tests sont intégrés au pipeline CI/CD et exécutés avant chaque déploiem
 
 Au cours du développement et de la mise en place de ce pipeline CI/CD, nous avons rencontré plusieurs défis techniques qui ont nécessité des solutions spécifiques :
 
-### 1. Problème de SSH avec GitHub Actions
+### 1. Connectivité SSH depuis GitHub Actions vers VM locale
+
+**Problème** : Échec de connexion SSH lors de l'exécution du workflow GitHub Actions avec l'erreur "Connection refused".
+
+**Log d'erreur** :
+```
+TASK [Gathering Facts] *********************************************************
+fatal: [127.0.0.1]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect to the host via ssh: ssh: connect to host 127.0.0.1 port 2222: Connection refused", "unreachable": true}
+```
+
+**Solution** : 
+- Reconnaissance du fait que GitHub Actions s'exécute sur les serveurs distants de GitHub et ne peut pas accéder directement à notre VM locale
+- Modification du workflow pour qu'il crée un package de déploiement au lieu d'essayer de déployer directement
+- Mise en place d'un processus de déploiement semi-automatisé où :
+  1. GitHub Actions exécute les tests et crée un package de déploiement
+  2. Le développeur télécharge manuellement le package et l'utilise pour déployer localement
+
+```yaml
+- name: Create deployment package
+  run: |
+    VERSION=${GITHUB_REF#refs/tags/v}
+    echo "Création du package de déploiement pour la version $VERSION"
+    mkdir -p deployment
+    cp -r api deployment/
+    cp -r ansible deployment/
+    tar -czf api-deployment-$VERSION.tar.gz deployment
+```
+
+### 2. Problème de SSH avec GitHub Actions
 
 **Problème** : Échec d'authentification SSH lors du déploiement via GitHub Actions vers notre VM Vagrant.
 
@@ -239,7 +269,7 @@ fatal: [127.0.0.1]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect
     ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 ```
 
-### 2. Permissions insuffisantes pour PM2
+### 3. Permissions insuffisantes pour PM2
 
 **Problème** : PM2 ne pouvait pas redémarrer l'application après déploiement (problème de permissions).
 
@@ -257,7 +287,7 @@ fatal: [127.0.0.1]: UNREACHABLE! => {"changed": false, "msg": "Failed to connect
   become_user: vagrant
 ```
 
-### 3. Conflits de tags Git
+### 4. Conflits de tags Git
 
 **Problème** : Échecs lors de la création de tags basés sur la date dans le script de release.
 
@@ -275,7 +305,7 @@ echo "🏷️  Creating tag v$VERSION..."
 git tag "v$VERSION"
 ```
 
-### 4. Gestion des dépendances Node.js
+### 5. Gestion des dépendances Node.js
 
 **Problème** : Installations incomplètes des dépendances Node.js sur le serveur de déploiement.
 
@@ -296,6 +326,20 @@ Error: Cannot find module 'express'
     state: present
     production: yes
 ```
+
+### 6. Problèmes avec les actions GitHub externes
+
+**Problème** : Erreurs lors de l'utilisation d'actions GitHub externes dans notre workflow.
+
+**Log d'erreur** :
+```
+Error: Missing download info for actions/upload-artifact@v3
+```
+
+**Solution** :
+- Simplification du workflow pour utiliser un minimum d'actions externes
+- Remplacement des actions problématiques par des commandes shell simples
+- Création d'un processus de déploiement semi-automatisé avec des instructions claires
 
 Ces obstacles et leurs solutions illustrent les défis typiques rencontrés lors de la mise en place d'un pipeline CI/CD robuste, et montrent comment une approche méthodique de résolution de problèmes peut les surmonter.
 
