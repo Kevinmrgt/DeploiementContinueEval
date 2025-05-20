@@ -29,8 +29,8 @@ echo "📝 Updating version with standard-version..."
 npx standard-version --release-as minor --skip.tag
 
 # Deploy with Ansible
-echo "🚀 Deploying with Ansible..."
-cd ..
-ansible-playbook -i ansible/inventory.ini ansible/deploy.yml
+echo "🚀 La nouvelle version sera déployée via GitHub Actions..."
+echo "⏳ Attendez que le workflow GitHub Actions se termine (environ 5 minutes)."
+echo "🔍 Vous pouvez suivre l'avancement sur l'onglet Actions de votre dépôt GitHub."
 
 echo "✅ Release process completed successfully!"
