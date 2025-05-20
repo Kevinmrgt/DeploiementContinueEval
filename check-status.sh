@@ -11,7 +11,7 @@ vagrant status | grep "running" || echo "❌ VM not running. Start with 'cd infr
 # Check API availability
 echo -e "\n🌐 Checking API status:"
 HEALTH_RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
-if [[ $HEALTH_RESPONSE -eq 200 ]]; then
+if [ "$HEALTH_RESPONSE" = "200" ]; then
   echo "✅ API is accessible at http://localhost:3000"
   echo -e "\n📊 API Health details:"
   curl -s http://localhost:3000/health
